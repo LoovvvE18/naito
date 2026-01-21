@@ -6,6 +6,7 @@
 #include <bit>
 #include <cstring>
 #include <algorithm>
+#include <cstdint>
 
 // --- 从 lemac_arm64_v8A.cpp 提取的辅助逻辑 ---
 
@@ -37,23 +38,49 @@ uint32_t SUBWORD(uint32_t x) {
 
 // 密钥扩展
 void AES128_keyschedule(const uint8x16_t K, std::span<uint8x16_t, 11> roundkeys) {
-    const auto K_le = vreinterpretq_u32_u8(vrev32q_u8(K));
-    static constexpr std::array<uint8_t, 11> Rcon{0x0, 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36};
-    std::array<uint32_t, 44> W;
+    static_assert(std::endian::native == std::endian::little, "the code assumes little endian");
 
-    for (int i = 0; i < 44; ++i) {
-        if (i < 4) {
-            W[i] = vgetq_lane_u32(K_le, i);
+    // number of 32 bit words (4 for AES-128)
+    constexpr auto Nk = 4;
+    // number of round keys needed (11 for AES-128)
+    constexpr auto R = 11;
+    static_assert(roundkeys.size() == R);
+
+    // convert K to four little endian uint32
+    const auto K_le = vreinterpretq_u32_u8(vrev32q_u8(K));
+
+    static constexpr std::array<uint8_t, 11> Rcon{
+        0x0, 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36};
+
+    std::array<std::uint32_t, 4 * R> W;
+
+    for (int i = 0; i < 4 * R; ++i) {
+        std::uint32_t& Wi = W[i];
+        if (i == 0) {
+            Wi = vgetq_lane_u32(K_le, 0);
+        } else if (i == 1) {
+            Wi = vgetq_lane_u32(K_le, 1);
+        } else if (i == 2) {
+            Wi = vgetq_lane_u32(K_le, 2);
+        } else if (i == 3) {
+            Wi = vgetq_lane_u32(K_le, 3);
         } else {
             auto temp = W[i - 1];
-            if (i % 4 == 0) {
-                temp = SUBWORD(ROTWORD(temp)) ^ (Rcon[i / 4] << 24);
+            if (i % Nk == 0) {
+                const auto after_rotword = ROTWORD(temp);
+                const auto after_subword = SUBWORD(after_rotword);
+                const auto after_rcon = after_subword ^ (Rcon[i / Nk] << 24);
+                temp = after_rcon;
+            } else if (Nk > 6 && (i % Nk == 4)) {
+                temp = SUBWORD(temp);
             }
-            W[i] = W[i - 4] ^ temp;
+            Wi = W[i - Nk] ^ temp;
         }
     }
-    for (int i = 0; i < 11; ++i) {
-        roundkeys[i] = vrev32q_u8(vld1q_u8(reinterpret_cast<const uint8_t*>(&W[i * 4])));
+
+    // copy round keys to output, in big endian
+    for (int i = 0; i < 4*R; i+=4) {
+        roundkeys[i / 4] = vrev32q_u8(vld1q_u8(reinterpret_cast<const std::uint8_t*>(&W[i])));
     }
 }
 
