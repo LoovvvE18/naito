@@ -57,11 +57,15 @@ void AES256_keyschedule(const uint8x16_t K0, const uint8x16_t K1, std::span<uint
 
     for (int i = 0; i < 4 * R; ++i) {
         std::uint32_t& Wi = W[i];
-        if (i < 4) {
-            Wi = vgetq_lane_u32(K0_le, i);
-        } else if (i < 8) {
-            Wi = vgetq_lane_u32(K1_le, i - 4);
-        } else {
+        if (i == 0) Wi = vgetq_lane_u32(K0_le, 0);
+        else if (i == 1) Wi = vgetq_lane_u32(K0_le, 1);
+        else if (i == 2) Wi = vgetq_lane_u32(K0_le, 2);
+        else if (i == 3) Wi = vgetq_lane_u32(K0_le, 3);
+        else if (i == 4) Wi = vgetq_lane_u32(K1_le, 0);
+        else if (i == 5) Wi = vgetq_lane_u32(K1_le, 1);
+        else if (i == 6) Wi = vgetq_lane_u32(K1_le, 2);
+        else if (i == 7) Wi = vgetq_lane_u32(K1_le, 3);
+        else {
             auto temp = W[i - 1];
             if (i % Nk == 0) {
                 const auto after_rotword = ROTWORD(temp);
