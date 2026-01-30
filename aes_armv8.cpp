@@ -37,17 +37,18 @@ uint32_t SUBWORD(uint32_t x) {
 }
 
 // 密钥扩展
-void AES128_keyschedule(const uint8x16_t K, std::span<uint8x16_t, 11> roundkeys) {
+void AES256_keyschedule(const uint8x16_t K0, const uint8x16_t K1, std::span<uint8x16_t, 15> roundkeys) {
     static_assert(std::endian::native == std::endian::little, "the code assumes little endian");
 
-    // number of 32 bit words (4 for AES-128)
-    constexpr auto Nk = 4;
-    // number of round keys needed (11 for AES-128)
-    constexpr auto R = 11;
+    // number of 32 bit words (8 for AES-256)
+    constexpr auto Nk = 8;
+    // number of round keys needed (15 for AES-256)
+    constexpr auto R = 15;
     static_assert(roundkeys.size() == R);
 
-    // convert K to four little endian uint32
-    const auto K_le = vreinterpretq_u32_u8(vrev32q_u8(K));
+    // convert K to little endian uint32
+    const auto K0_le = vreinterpretq_u32_u8(vrev32q_u8(K0));
+    const auto K1_le = vreinterpretq_u32_u8(vrev32q_u8(K1));
 
     static constexpr std::array<uint8_t, 11> Rcon{
         0x0, 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36};
@@ -56,14 +57,10 @@ void AES128_keyschedule(const uint8x16_t K, std::span<uint8x16_t, 11> roundkeys)
 
     for (int i = 0; i < 4 * R; ++i) {
         std::uint32_t& Wi = W[i];
-        if (i == 0) {
-            Wi = vgetq_lane_u32(K_le, 0);
-        } else if (i == 1) {
-            Wi = vgetq_lane_u32(K_le, 1);
-        } else if (i == 2) {
-            Wi = vgetq_lane_u32(K_le, 2);
-        } else if (i == 3) {
-            Wi = vgetq_lane_u32(K_le, 3);
+        if (i < 4) {
+            Wi = vgetq_lane_u32(K0_le, i);
+        } else if (i < 8) {
+            Wi = vgetq_lane_u32(K1_le, i - 4);
         } else {
             auto temp = W[i - 1];
             if (i % Nk == 0) {
@@ -71,7 +68,7 @@ void AES128_keyschedule(const uint8x16_t K, std::span<uint8x16_t, 11> roundkeys)
                 const auto after_subword = SUBWORD(after_rotword);
                 const auto after_rcon = after_subword ^ (Rcon[i / Nk] << 24);
                 temp = after_rcon;
-            } else if (Nk > 6 && (i % Nk == 4)) {
+            } else if (i % Nk == 4) {
                 temp = SUBWORD(temp);
             }
             Wi = W[i - Nk] ^ temp;
@@ -84,16 +81,16 @@ void AES128_keyschedule(const uint8x16_t K, std::span<uint8x16_t, 11> roundkeys)
     }
 }
 
-// AES-128 加密单块
-uint8x16_t AES128_encrypt(std::span<const uint8x16_t, 11> roundkeys, uint8x16_t x) {
-    // 轮 1-9
-    for (int round = 1; round < 10; ++round) {
+// AES-256 加密单块
+uint8x16_t AES256_encrypt(std::span<const uint8x16_t, 15> roundkeys, uint8x16_t x) {
+    // 轮 1-13
+    for (int round = 1; round < 14; ++round) {
         x = vaeseq_u8(x, roundkeys[round - 1]);
         x = vaesmcq_u8(x);
     }
     // 最后一轮
-    x = vaeseq_u8(x, roundkeys[9]);
-    x = veorq_u8(x, roundkeys[10]);
+    x = vaeseq_u8(x, roundkeys[13]);
+    x = veorq_u8(x, roundkeys[14]);
     return x;
 }
 
@@ -105,22 +102,25 @@ void print_hex(const std::string& label, std::span<const uint8_t> data) {
 }
 
 int main() {
-    // --- 测试数据 (NIST AES-128 向量) ---
-    // Key: 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f
+    // --- 测试数据 (NIST AES-256 向量) ---
+    // Key: 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f
     // Plaintext: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
-    // Expected Ciphertext: 69 c4 e0 d8 6a 7b 04 30 d8 cd b7 80 70 b4 c5 5a
+    // Expected Ciphertext: 8e a2 b7 ca 51 67 45 bf ea fc 49 90 4b 49 60 89
 
-    std::array<uint8_t, 16> key_raw = {0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
+    std::array<uint8_t, 32> key_raw = {
+        0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,
+        0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1a,0x1b,0x1c,0x1d,0x1e,0x1f
+    };
     std::array<uint8_t, 16> pt_raw = {0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff};
     std::array<uint8_t, 16> ct_raw;
 
     // 1. 初始化密钥
-    uint8x16_t roundkeys[11];
-    AES128_keyschedule(vld1q_u8(key_raw.data()), roundkeys);
+    uint8x16_t roundkeys[15];
+    AES256_keyschedule(vld1q_u8(key_raw.data()), vld1q_u8(key_raw.data() + 16), roundkeys);
 
     // 2. 加密
     uint8x16_t data = vld1q_u8(pt_raw.data());
-    uint8x16_t result = AES128_encrypt(roundkeys, data);
+    uint8x16_t result = AES256_encrypt(roundkeys, data);
 
     // 3. 输出结果
     vst1q_u8(ct_raw.data(), result);
@@ -129,7 +129,7 @@ int main() {
     print_hex("Plaintext ", pt_raw);
     print_hex("Ciphertext", ct_raw);
     
-    std::array<uint8_t, 16> expected = {0x69,0xc4,0xe0,0xd8,0x6a,0x7b,0x04,0x30,0xd8,0xcd,0xb7,0x80,0x70,0xb4,0xc5,0x5a};
+    std::array<uint8_t, 16> expected = {0x8e, 0xa2, 0xb7, 0xca, 0x51, 0x67, 0x45, 0xbf, 0xea, 0xfc, 0x49, 0x90, 0x4b, 0x49, 0x60, 0x89};
     if (std::equal(ct_raw.begin(), ct_raw.end(), expected.begin())) {
         std::cout << "\nSUCCESS: Ciphertext matches NIST vector!" << std::endl;
     } else {
