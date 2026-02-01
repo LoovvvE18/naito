@@ -313,3 +313,4 @@ void NaitoHashArm64::finalize_to(std::span<uint8_t, digest_size> target) noexcep
     // 执行终结函数，生成最终摘要
     finalize_state(m_state, target);
 }
+} // namespace naito::inline v1
