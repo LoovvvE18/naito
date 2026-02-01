@@ -88,7 +88,7 @@ public:
   /**
    * @brief 结束哈希计算并输出结果
    * 
-   * 1. 应用 ISO/IEC 7816-4 填充 (0x80, 0x00...)。
+   * 1. 填充
    * 2. 处理最后一个填充块。
    * 3. 执行终结函数生成最终摘要。
    * 
@@ -106,11 +106,6 @@ public:
 
   // 重置状态为初始值 (t=0, b=0)，以便复用对象
   void reset() noexcept;
-
-#ifdef NAITO_INTERNAL_STATE_VISIBILITY
-  // 用于调试：以十六进制字符串形式打印内部状态 t 和 b
-  std::string get_internal_state() const noexcept;
-#endif
 
 private:
   // 核心状态变量 (t, b)

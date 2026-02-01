@@ -301,10 +301,8 @@ void NaitoHashArm64::update(std::span<const uint8_t> data) noexcept {
 void NaitoHashArm64::finalize_to(std::span<uint8_t, digest_size> target) noexcept {
     assert(m_bufsize < m_buf.size());
 
-    // 应用 ISO/IEC 7816-4 Padding
-    // 规则：追加一个 '0x80' 字节，后续全部填 '0x00' 直到块结束
-    m_buf[m_bufsize] = 0x80;
-    for (std::size_t i = m_bufsize + 1; i < m_buf.size(); ++i) {
+    // 从当前位置起全部填充 '0x00' 直到块结束
+    for (std::size_t i = m_bufsize; i < m_buf.size(); ++i) {
         m_buf[i] = 0;
     }
 
