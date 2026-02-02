@@ -3,6 +3,8 @@
 # 1. 定义源文件变量，方便复用
 # 注意：这里假设 CMakeLists.txt 在 benchmark 目录下
 # 所以 ../src 指向项目根目录的 src
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(NAITO_SOURCES 
     ../src/naito_arm64.cpp
 )
