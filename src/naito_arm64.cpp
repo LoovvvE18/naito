@@ -1,3 +1,4 @@
+#if defined(__aarch64__) || defined(_M_ARM64)
 #include <naito_arm64.h>
 
 #include <bit>
@@ -6,6 +7,7 @@
 #include <iostream>
 #include <cstdio>
 #include <algorithm>
+
 
 namespace naito::inline v1 {
 

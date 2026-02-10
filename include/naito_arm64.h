@@ -1,5 +1,7 @@
 #pragma once
 
+// 只有在 ARM64 平台下才编译此文件的内容
+#if defined(__aarch64__) || defined(_M_ARM64)
 #include <array>
 #include <vector>
 #include <span>
