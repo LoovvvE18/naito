@@ -316,3 +316,4 @@ void NaitoHashArm64::finalize_to(std::span<uint8_t, digest_size> target) noexcep
     finalize_state(m_state, target);
 }
 } // namespace naito::inline v1
+#endif

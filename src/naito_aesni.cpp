@@ -239,3 +239,4 @@ void NaitoHashAesni::finalize_to(
 }
 
 } // namespace naito::inline v1
+#endif

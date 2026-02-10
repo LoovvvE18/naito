@@ -124,3 +124,4 @@ private:
 std::unique_ptr<NaitoHashArm64> make_naito_hash();
 
 } // namespace naito::inline v1
+#endif

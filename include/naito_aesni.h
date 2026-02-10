@@ -57,3 +57,4 @@ private:
 std::unique_ptr<NaitoHashAesni> make_naito_hash_aesni();
 
 } // namespace naito::inline v1
+#endif
